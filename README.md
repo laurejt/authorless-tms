@@ -57,7 +57,7 @@ the import-file option. The script get\_vocab.sh builds a working vocabulary fro
 corpus's corresponding Mallet collection file.
 
 ```
-./get\_vocab.sh [Mallet collection file] [output vocab file]
+./get_vocab.sh [Mallet collection file] [output vocab file]
 ```
 
 
