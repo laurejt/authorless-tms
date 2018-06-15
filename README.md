@@ -11,7 +11,7 @@ The Science Fiction collection can be reconstructed from the metadate file scifi
 The title, author, and HathiTrust volume identifier is provided for each work in the corpus.
 HathiTrust volume identifiers are uniquely tied to a single work within HathiTrust.
 These identifiers can be used to obtain page-level features from the [HTRC Extracted 
-Features Dataset](https:wiki.htrc.illinois.edu/display/COM/Extracted+Features+Dataset).
+Features Dataset](https://wiki.htrc.illinois.edu/display/COM/Extracted+Features+Dataset).
 
 The U.S. State Supreme Courts collection can similarly be reconstructed from the 
 metadata file state\_courts.tsv.
