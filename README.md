@@ -183,6 +183,9 @@ It outputs a downsampled version of the input corpus.
                      the documents may get much shorter and become noninformative for 
                      training.
 
+--ignore-case : Makes text handling, for both the input corpus and working vocabulary,
+                case-insensitive.
+
 -v, --verbose : Increases program verbosity, specifically producing more program progress 
                 information.
 

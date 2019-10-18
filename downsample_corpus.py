@@ -8,11 +8,13 @@ from scipy.stats import gamma
 
 
 # Read in vocabulary from file.
-def get_vocab(vocab_fn):
+def get_vocab(vocab_fn, ignore_case):
     vocab = []
     vocab_index = {}
     for i, line in enumerate(open(vocab_fn, mode='r', encoding='utf-8')):
         term = line.strip()
+        if ignore_case:
+            term = term.lower()
         vocab.append(term)
         vocab_index[term] = i
     return vocab, vocab_index
@@ -23,18 +25,22 @@ def get_vocab(vocab_fn):
 #   authors: working list of authors
 #   author_doc_ids: mapping of authors to document ids
 #   doc_term_matrix: document-term matrix
-def process_corpus(in_tsv, vocab_index, verbose=False):
+def process_corpus(in_tsv, vocab_index, ignore_case, verbose):
     vocab_size = len(vocab_index)
     authors_by_doc = []
     doc_vectors = []
+    n_lines = sum(1 for line in open(in_tsv))
     reader = open(in_tsv, mode='r', encoding='utf-8')
     for i, line in enumerate(reader):
         if verbose and i and i % 1000 == 0:
-            print(i, file=sys.stderr)
+            print('{}/{}'.format(i, n_lines), file=sys.stderr)
         fields = line.strip().split('\t')
         authors_by_doc.append(fields[1])
         vector = lil_matrix((1, vocab_size))
-        term_counts = Counter(fields[2].split())
+        tokens = fields[2].split()
+        if ignore_case:
+            tokens = [t.lower() for t in tokens]
+        term_counts = Counter(tokens)
         for term in term_counts:
             if term in vocab_index:
                 col = vocab_index[term]
@@ -88,17 +94,25 @@ def get_stop_weights(author_term_matrix, threshold):
 
 # Downsample input according to the author-term stop weights matrix.
 def downsample(in_tsv, vocab_index, document_term_matrix, author_index,
-               author_term_weights, out_tsv, min_tokens=20, verbose=False):
+               author_term_weights, out_tsv, min_tokens, ignore_case, verbose):
     writer = open(out_tsv, mode='w', encoding='utf-8')
+    n_docs = document_term_matrix.shape[0]
     for doc_id, line in enumerate(open(in_tsv, mode='r', encoding='utf-8')):
         if verbose and doc_id and doc_id % 1000 == 0:
-            print(doc_id, file=sys.stderr)
+            print('{}/{}'.format(doc_id, n_docs), file=sys.stderr)
         fields = line.strip().split('\t')
         author = fields[1]
         author_id = author_index[author]
-        tokens = np.array(fields[2].split())
-        term_ids = np.array([vocab_index[t] for t in tokens if t in vocab_index])
+        tokens = fields[2].split()
+        # Filter tokens based on working vocabulary
+        if ignore_case:
+            tokens = [t for t in tokens if t.lower() in vocab_index]
+            term_ids = np.array([vocab_index[t.lower()] for t in tokens])
+        else:
+            tokens = [t for t in tokens if t in vocab_index]
+            term_ids = np.array([vocab_index[t] for t in tokens])
 
+        # Construct token mask for curation
         term_stop_rates = author_term_weights.getrow(author_id)
         term_stop_rates = term_stop_rates.toarray().ravel()
         token_keep_rates = [1-term_stop_rates[i] for i in term_ids]
@@ -108,7 +122,7 @@ def downsample(in_tsv, vocab_index, document_term_matrix, author_index,
         # Write document if it has at least min_tokens tokens
         if n_kept >= min_tokens:
             token_mask = token_mask.astype(bool)
-            stopped_text = ' '.join(tokens[token_mask])
+            stopped_text = ' '.join(np.array(tokens)[token_mask])
             writer.write('{}\t{}\t{}\n'.format(fields[0], fields[1],
                                                stopped_text))
     writer.close()
@@ -143,6 +157,10 @@ if __name__ == '__main__':
                         metavar='N', default=20, type=int,
                         help='Remove downsampled documents with lengths ' +
                              'less than this value. Default is 20.')
+    parser.add_argument('--ignore-case', action='store_true',
+                        dest='ignore_case',
+                        help='Ignore case distinctions in both the ' +
+                             'collection and working vocabulary.')
     parser.add_argument('-v', '--verbose', action='store_true',
                         dest='verbose')
 
@@ -151,11 +169,11 @@ if __name__ == '__main__':
         sys.exit(1)
     args = parser.parse_args()
 
-    vocab, vocab_index = get_vocab(args.vocab_fn)
+    vocab, vocab_index = get_vocab(args.vocab_fn, args.ignore_case)
     print('Building doc-term matrix')
     (authors, author_index, author_doc_ids,
      doc_term_counts) = process_corpus(args.in_tsv, vocab_index,
-                                       verbose=args.verbose)
+                                       args.ignore_case, args.verbose)
     print('Building author-term matrix')
     author_term_counts = get_author_term_matrix(authors, author_doc_ids,
                                                 doc_term_counts)
@@ -163,5 +181,5 @@ if __name__ == '__main__':
     stop_weights = get_stop_weights(author_term_counts, args.threshold)
     print('Downsampling file')
     downsample(args.in_tsv, vocab_index, doc_term_counts, author_index,
-               stop_weights, args.out_tsv, min_tokens=args.min_doc_len,
-               verbose=args.verbose)
+               stop_weights, args.out_tsv, args.min_doc_len,
+               args.ignore_case, args.verbose)
